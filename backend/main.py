@@ -1,1 +1,114 @@
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import os
 
+from backend.redact import redact_text
+from backend.urls import analyze_url
+from backend.qr_upi import decode_qr_image, analyze_qr_or_upi
+from backend.text_rules import analyze_message_text
+from backend.ml import predict_text_spam_ml
+from backend.scoring import calculate_verdict
+from backend.db import check_blocklist, save_feedback
+
+app = FastAPI(title="Tru-lens Local Engine", version="1.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+class AnalyzeRequest(BaseModel):
+    text: str
+
+@app.post("/api/analyze")
+def analyze_content(payload: AnalyzeRequest):
+    raw_text = payload.text
+    
+    # 1. Redaction Layer (Runs FIRST)
+    redaction_res = redact_text(raw_text)
+    safe_text = redaction_res["masked_text"]
+    
+    total_score = 0
+    all_reasons = []
+
+    # 2. Text Analysis (Rules + ML)
+    text_analysis = analyze_message_text(safe_text)
+    total_score += text_analysis["rule_score"]
+    all_reasons.extend(text_analysis["reasons"])
+
+    ml_proba = predict_text_spam_ml(safe_text)
+    if ml_proba > 0.6:
+        ml_score = int(ml_proba * 40)
+        total_score += ml_score
+        all_reasons.append({
+            "rule": "ml_spam_detection",
+            "score": ml_score,
+            "reason": f"Machine Learning model flagged text pattern (Confidence: {int(ml_proba*100)}%)"
+        })
+
+    # 3. Extract and check URLs inside the text
+    import re
+    url_pattern = re.compile(r'https?://[^\s]+|www\.[^\s]+|[a-zA-Z0-9][-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&//=]*)')
+    urls_found = url_pattern.findall(raw_text)
+    
+    in_blocklist = False
+    for u in urls_found:
+        url_res = analyze_url(u)
+        total_score += url_res["risk_score"]
+        all_reasons.extend(url_res["reasons"])
+        if check_blocklist(url_res["domain"]):
+            in_blocklist = True
+            all_reasons.append({
+                "rule": "local_blocklist_match",
+                "score": 100,
+                "reason": f"Domain {url_res['domain']} found in offline local blocklist!"
+            })
+
+    # 4. Final Verdict calculation
+    total_score = min(total_score, 100)
+    verdict_res = calculate_verdict(total_score, in_blocklist=in_blocklist)
+
+    return {
+        "redacted_text": safe_text,
+        "redactions_applied": redaction_res["redactions_applied"],
+        "score": total_score,
+        "verdict": verdict_res["verdict"],
+        "color": verdict_res["color"],
+        "reasons": all_reasons,
+        "online_check": "not used (offline mode)"
+    }
+
+@app.post("/api/analyze-qr")
+async def analyze_qr(file: UploadFile = File(...), message_context: str = Form("")):
+    contents = await file.read()
+    decoded_payload = decode_qr_image(contents)
+    
+    if not decoded_payload:
+        raise HTTPException(status_code=400, detail="Could not decode QR code from image.")
+        
+    qr_result = analyze_qr_or_upi(decoded_payload, message_context)
+    verdict_res = calculate_verdict(qr_result["risk_score"])
+    
+    return {
+        "decoded_payload": decoded_payload,
+        "analysis_type": qr_result["type"],
+        "score": qr_result["risk_score"],
+        "verdict": verdict_res["verdict"],
+        "color": verdict_res["color"],
+        "reasons": qr_result["reasons"],
+        "details": qr_result.get("details", {})
+    }
+
+class FeedbackRequest(BaseModel):
+    redacted_input: str
+    predicted_verdict: str
+    user_label: str
+
+@app.post("/api/feedback")
+def submit_feedback(payload: FeedbackRequest):
+    save_feedback(payload.redacted_input, payload.predicted_verdict, payload.user_label)
+    return {"status": "success", "message": "Feedback saved securely."}
