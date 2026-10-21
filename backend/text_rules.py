@@ -82,7 +82,7 @@ def analyze_message_text(text: str) -> dict:
             })
 
     # 2. Check urgency / pressure phrases
-    urgency_found = any(urg => urg in text_lower for urg in URGENCY_KEYWORDS)
+    urgency_found = any(urg in text_lower for urg in URGENCY_KEYWORDS)
     if urgency_found:
         rule_score += 15
         reasons.append({
