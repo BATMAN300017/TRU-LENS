@@ -1,1 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tru-lens Scam Detector</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="manifest" href="/manifest.json">
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen p-4 flex flex-col items-center">
+    <div class="w-full max-w-md bg-slate-800 rounded-xl shadow-xl p-6 border border-slate-700">
+        <h1 class="text-2xl font-bold text-center mb-2 text-cyan-400">🛡️ Tru-lens</h1>
+        <p class="text-xs text-center text-slate-400 mb-6">Offline-First Scam & Phishing Detector (Local Server)</p>
 
+        <!-- Input Form -->
+        <div class="mb-4">
+            <label class="block text-sm font-medium mb-2 text-slate-300">Paste suspicious message or URL:</label>
+            <textarea id="messageInput" rows="4" class="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg focus:outline-none focus:border-cyan-500 text-sm" placeholder="e.g. Dear customer your SBI KYC will expire today click http://sbi-update.xyz..."></textarea>
+        </div>
+
+        <button onclick="analyzeMessage()" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-semibold py-3 rounded-lg transition duration-200">
+            Analyze Risk
+        </button>
+
+        <!-- Results Section -->
+        <div id="results" class="mt-6 hidden space-y-4">
+            <div id="verdictBox" class="p-4 rounded-lg text-center font-bold text-lg"></div>
+            
+            <div class="bg-slate-900 p-3 rounded-lg border border-slate-700 text-xs">
+                <p class="font-semibold text-slate-400 mb-1">Redacted Input (Privacy First):</p>
+                <p id="redactedText" class="text-slate-200 italic"></p>
+            </div>
+
+            <div class="bg-slate-900 p-3 rounded-lg border border-slate-700 text-xs">
+                <p class="font-semibold text-slate-400 mb-2">Detected Risk Factors:</p>
+                <ul id="reasonsList" class="space-y-1 text-slate-300"></ul>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function analyzeMessage() {
+            const text = document.getElementById('messageInput').value;
+            if (!text.trim()) return;
+
+            try {
+                const response = await fetch('/api/analyze', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text })
+                });
+                const data = await response.json();
+
+                // Show results container
+                document.getElementById('results').classList.remove('hidden');
+
+                // Set verdict box color & text
+                const verdictBox = document.getElementById('verdictBox');
+                verdictBox.innerText = `Verdict: ${data.verdict} (Score: ${data.score}/100)`;
+                verdictBox.className = `p-4 rounded-lg text-center font-bold text-lg ${
+                    data.color === 'red' ? 'bg-red-900 text-red-200 border border-red-700' :
+                    data.color === 'orange' ? 'bg-amber-900 text-amber-200 border border-amber-700' :
+                    'bg-emerald-900 text-emerald-200 border border-emerald-700'
+                }`;
+
+                // Redacted text
+                document.getElementById('redactedText').innerText = data.redacted_text;
+
+                // Reasons list
+                const reasonsList = document.getElementById('reasonsList');
+                reasonsList.innerHTML = '';
+                if (data.reasons.length === 0) {
+                    reasonsList.innerHTML = '<li class="text-slate-400">No red flags detected.</li>';
+                } else {
+                    data.reasons.forEach(r => {
+                        const li = document.createElement('li');
+                        li.innerHTML = `• <span class="text-cyan-400">[+${r.score}]</span> ${r.reason}`;
+                        reasonsList.appendChild(li);
+                    });
+                }
+            } catch (err) {
+                alert('Error connecting to local server: ' + err);
+            }
+        }
+    </script>
+</body>
+</html>
