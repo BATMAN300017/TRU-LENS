@@ -112,3 +112,18 @@ class FeedbackRequest(BaseModel):
 def submit_feedback(payload: FeedbackRequest):
     save_feedback(payload.redacted_input, payload.predicted_verdict, payload.user_label)
     return {"status": "success", "message": "Feedback saved securely."}
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+import os
+
+FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend"))
+
+@app.get("/")
+def serve_home():
+    index_path = os.path.join(FRONTEND_DIR, "index.html")
+    if os.path.exists(index_path):
+        return FileResponse(index_path)
+    return {"error": f"index.html not found! Make sure it is saved at: {index_path}"}
+
+if os.path.isdir(FRONTEND_DIR):
+    app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
