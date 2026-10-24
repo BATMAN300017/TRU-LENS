@@ -3,9 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tru-lens Scam & QR Detector (Offline-First)</title>
+    <title>Tru-lens Scam & QR Detector (Offline-First PWA)</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="manifest" href="/manifest.json">
+    <!-- Client-side QR decoder cached by Service Worker for 100% static GitHub Pages & Offline PWA operation -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+    <link rel="manifest" href="./manifest.json">
+    <meta name="theme-color" content="#1e293b">
     <style>
         /* Offline Fallback Styles (ensures clean UI even when completely disconnected from internet) */
         body {
@@ -82,14 +85,19 @@
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen p-4 flex flex-col items-center">
     <div class="app-card w-full max-w-lg bg-slate-800 rounded-xl shadow-xl p-6 border border-slate-700">
-        <!-- Header -->
+        <!-- Header & Install PWA Button -->
         <div class="flex items-center justify-between mb-1">
             <h1 class="text-2xl font-bold text-cyan-400">🛡️ Tru-lens</h1>
-            <span class="text-[11px] bg-emerald-950 text-emerald-300 border border-emerald-700 px-2.5 py-0.5 rounded-full font-medium">
-                ⚡ 100% Offline Ready
-            </span>
+            <div class="flex items-center gap-2">
+                <button id="installPwaBtn" onclick="installPWA()" class="hidden text-[11px] bg-cyan-700 hover:bg-cyan-600 text-white px-2.5 py-0.5 rounded-full font-semibold cursor-pointer">
+                    📲 Install App
+                </button>
+                <span id="engineBadge" class="text-[11px] bg-emerald-950 text-emerald-300 border border-emerald-700 px-2.5 py-0.5 rounded-full font-medium">
+                    ⚡ 100% In-Browser & Offline
+                </span>
+            </div>
         </div>
-        <p class="text-xs text-slate-400 mb-5">Offline-First Scam Message, Link & QR Code Detector</p>
+        <p class="text-xs text-slate-400 mb-5">Zero-Setup Scam Message, Link & QR Code Detector (Runs 100% on Your Device)</p>
 
         <!-- Primary Mode Tabs -->
         <div class="flex gap-2 mb-5">
@@ -106,7 +114,7 @@
         <!-- ============================================================== -->
         <div id="messagePanel">
             <div class="mb-4">
-                <label class="block text-sm font-medium mb-2 text-slate-300">Paste suspicious SMS, WhatsApp message, or URL:</label>
+                <label class="block text-sm font-medium mb-2 text-slate-300">Paste suspicious SMS, WhatsApp message, UPI link, or URL:</label>
                 <textarea id="messageInput" rows="4" class="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg focus:outline-none focus:border-cyan-500 text-sm text-slate-100" placeholder="e.g. Dear customer your SBI KYC will expire today click http://sbi-update.xyz..."></textarea>
             </div>
 
@@ -129,7 +137,7 @@
                 </button>
             </div>
 
-            <!-- Optional Accompanying Context (critical for catching 'Scan to Receive Refund' scams) -->
+            <!-- Optional Accompanying Context -->
             <div>
                 <label class="block text-xs font-medium mb-1 text-slate-300">
                     Context / Message sent with this QR <span class="text-slate-500">(optional, helps catch refund/prize traps)</span>:
@@ -142,7 +150,7 @@
                 <label for="qrFileInput" class="flex flex-col items-center justify-center w-full h-36 border-2 border-dashed border-slate-600 hover:border-cyan-400 rounded-xl cursor-pointer bg-slate-900/70 transition p-4 text-center">
                     <span class="text-2xl mb-1">🖼️</span>
                     <span class="text-xs font-semibold text-slate-200">Click to select or drop a QR code screenshot</span>
-                    <span class="text-[11px] text-slate-400 mt-1">Supports PNG, JPG, WEBP (Decoded 100% offline via OpenCV)</span>
+                    <span class="text-[11px] text-slate-400 mt-1">Supports PNG, JPG, WEBP (Multi-pass decoding directly in your browser)</span>
                     <input id="qrFileInput" type="file" accept="image/*" class="hidden" onchange="handleQrFileSelect(event)">
                 </label>
 
@@ -151,7 +159,7 @@
                     <img id="qrImagePreview" src="" alt="QR Preview" class="w-16 h-16 object-contain rounded border border-slate-700 bg-white p-1">
                     <div class="flex-1 min-w-0">
                         <p id="qrFileName" class="text-xs font-medium text-slate-200 truncate"></p>
-                        <p class="text-[11px] text-emerald-400 mt-0.5">Ready for offline scan</p>
+                        <p class="text-[11px] text-emerald-400 mt-0.5">Ready for instant browser scan</p>
                     </div>
                 </div>
 
@@ -160,7 +168,7 @@
                 </button>
             </div>
 
-            <!-- SUB-MODE B: LIVE CAMERA QR SCANNER (100% Offline via Canvas -> FastAPI OpenCV) -->
+            <!-- SUB-MODE B: LIVE CAMERA QR SCANNER -->
             <div id="qrCameraSection" class="hidden space-y-3">
                 <div class="relative w-full bg-slate-950 rounded-xl overflow-hidden border border-slate-700 aspect-video flex items-center justify-center">
                     <video id="qrVideo" class="w-full h-full object-cover hidden" playsinline muted></video>
@@ -169,7 +177,7 @@
                     <div id="cameraPlaceholder" class="text-center p-6">
                         <p class="text-2xl mb-1">📷</p>
                         <p class="text-xs text-slate-300 font-medium">Point your camera at any QR code</p>
-                        <p class="text-[11px] text-slate-400 mt-1">Frames are decoded locally on your device — no internet required</p>
+                        <p class="text-[11px] text-slate-400 mt-1">Decoded 100% locally inside your browser — zero server needed</p>
                     </div>
                 </div>
 
@@ -188,7 +196,7 @@
                 </div>
 
                 <p id="cameraStatusText" class="text-[11px] text-center text-slate-400">
-                    Camera is idle. Click "Start Camera" to begin real-time offline scanning.
+                    Camera is idle. Click "Start Camera" to begin real-time scanning.
                 </p>
             </div>
         </div>
@@ -197,10 +205,9 @@
         <!-- UNIFIED RESULTS SECTION                                        -->
         <!-- ============================================================== -->
         <div id="results" class="mt-6 hidden space-y-4">
-            <!-- Verdict Banner -->
             <div id="verdictBox" class="p-4 rounded-lg text-center font-bold text-lg"></div>
 
-            <!-- QR / UPI Specific Inspector Card (Shown only for QR scans) -->
+            <!-- QR / UPI Specific Inspector Card -->
             <div id="qrDetailsCard" class="hidden bg-slate-900 p-3.5 rounded-lg border border-slate-700 text-xs space-y-2">
                 <div class="flex items-center justify-between border-b border-slate-800 pb-2">
                     <span class="font-semibold text-slate-400">Decoded QR Payload:</span>
@@ -208,7 +215,7 @@
                 </div>
                 <p id="decodedPayloadText" class="font-mono text-[11px] text-amber-300 break-all bg-slate-950 p-2 rounded border border-slate-800"></p>
 
-                <!-- UPI Payment Breakdown (Shown when QR is a upi:// link) -->
+                <!-- UPI Payment Breakdown -->
                 <div id="upiBreakdownBox" class="hidden pt-2 space-y-1.5 border-t border-slate-800">
                     <div class="bg-amber-950/60 border border-amber-700/80 text-amber-200 p-2 rounded text-[11px] font-medium">
                         ⚠️ <strong>UPI Payment Direction:</strong> Scanning this QR will <u>DEDUCT</u> money from your bank account. Never enter your UPI PIN to "receive" money.
@@ -242,7 +249,7 @@
 
             <!-- Evidence-Based Risk Reasons -->
             <div class="bg-slate-900 p-3 rounded-lg border border-slate-700 text-xs">
-                <p class="font-semibold text-slate-400 mb-2">Detected Risk Factors (Offline Engine):</p>
+                <p class="font-semibold text-slate-400 mb-2">Detected Risk Factors:</p>
                 <ul id="reasonsList" class="space-y-1.5 text-slate-300"></ul>
             </div>
         </div>
@@ -253,8 +260,518 @@
         let scanIntervalId = null;
         let isProcessingFrame = false;
         let currentFacingMode = 'environment';
+        let deferredInstallPrompt = null;
 
-        // Switch between Message/URL tab and QR Code Scanner tab
+        // ==================================================================
+        // 1. PWA Service Worker + Android Share Target Zero-Setup Hooks
+        // ==================================================================
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js').catch(() => {});
+            });
+        }
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredInstallPrompt = e;
+            document.getElementById('installPwaBtn').classList.remove('hidden');
+        });
+
+        async function installPWA() {
+            if (!deferredInstallPrompt) return;
+            deferredInstallPrompt.prompt();
+            await deferredInstallPrompt.userChoice;
+            deferredInstallPrompt = null;
+            document.getElementById('installPwaBtn').classList.add('hidden');
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+            const sharedText = params.get('text') || params.get('url') || '';
+            if (sharedText.trim()) {
+                document.getElementById('messageInput').value = sharedText.trim();
+                analyzeMessage();
+            }
+        });
+
+        // ==================================================================
+        // 2. COMPLETE PORT OF TRU-LENS PYTHON BACKEND TO CLIENT-SIDE JS
+        //    (Works 100% on Static GitHub Pages & Offline Mobile PWA)
+        // ==================================================================
+        const INDIAN_BRANDS = [
+            "sbi", "hdfc", "icici", "axis", "pnb", "paytm", "phonepe", "gpay",
+            "amazon", "flipkart", "irctc", "jio", "airtel", "indiapost",
+            "incometax", "electricity"
+        ];
+
+        const RISKY_TLDS = new Set([".xyz", ".top", ".click", ".live", ".loan", ".work", ".cc", ".su", ".gq", ".tk", ".buzz", ".rest", ".fit"]);
+
+        const SHORTENER_DOMAINS = new Set([
+            "bit.ly", "tinyurl.com", "t.co", "rb.gy", "cutt.ly", "is.gd",
+            "tiny.cc", "ow.ly", "rebrand.ly", "shorturl.at", "bl.ink", "v.gd",
+            "qr.ae", "qrco.de", "qrfy.com", "lnkd.in"
+        ]);
+
+        const KNOWN_UPI_HANDLES = new Set([
+            "ybl", "ibl", "axl", "okaxis", "okhdfcbank", "okicici", "oksbi",
+            "paytm", "ptyes", "ptaxis", "pthdfc", "ptsbi", "apl", "rapl",
+            "upi", "sbi", "hdfcbank", "icici", "axisbank", "kotak", "barodampay",
+            "fbl", "indus", "pnb", "cnrb", "uboi", "mahb", "waicici", "wahdfcbank",
+            "wasbi", "waaxis", "naviaxis", "jio", "freecharge", "airtel", "slice"
+        ]);
+
+        // Full Bilingual (English + Hindi/Hinglish) Scam Patterns from backend/text_rules.py
+        const SCAM_PATTERNS = {
+            kyc_expiry: {
+                keywords: ["kyc", "expire", "block", "pan card", "update", "suspended", "dear customer your kyc", "kyc band", "khata band", "block ho jayega", "update karo", "kyc expire"],
+                score: 35,
+                description: "Fake KYC expiry / account block threat"
+            },
+            electricity_disconnection: {
+                keywords: ["electricity", "power", "bill", "disconnect", "mseb", "cesc", "bses", "night", "cutoff", "bijli kaat", "power cut", "light kategi", "bill baki", "payment nahi kiya"],
+                score: 35,
+                description: "Fake electricity bill disconnection threat"
+            },
+            digital_arrest: {
+                keywords: ["cbi", "cyber cell", "arrest", "court", "supreme court", "video call", "mumbai police", "narcotics", "illegal parcel", "girftar", "police case", "video call par aao", "cbi inquiry", "court warrant"],
+                score: 50,
+                description: "Digital arrest / fake law enforcement intimidation scam"
+            },
+            fake_job_wfh: {
+                keywords: ["part time", "work from home", "youtube", "task", "telegram", "daily income", "investment", "earn money", "ghar baithe", "part time job", "paisa kamao", "telegram group join"],
+                score: 30,
+                description: "Fake job / task-based earning scam"
+            },
+            lottery_prize: {
+                keywords: ["lottery", "won", "congratulations", "lucky draw", "kbc", "prize", "crore", "lakh", "jeeta hai", "inaam", "kbc lottery", "congrats lucky draw"],
+                score: 35,
+                description: "Lottery / prize winner scam"
+            },
+            upi_collect_refund: {
+                keywords: ["refund", "cashback", "collect request", "approve", "pin enter", "receive money", "paisa paane ke liye", "upi pin dalo", "refund milega", "collect request accept"],
+                score: 40,
+                description: "UPI collect request trick (money deduction scam)"
+            },
+            parcel_customs: {
+                keywords: ["fedex", "customs", "illegal items", "drugs", "parcel seized", "holding package", "parcel pakda gaya", "customs duty", "illegal courier"],
+                score: 40,
+                description: "Customs / seized parcel scam"
+            },
+            loan_app: {
+                keywords: ["instant loan", "low interest", "no cibil", "bad cibil", "disbursed", "turant loan", "aadhar par loan", "bina cibil loan"],
+                score: 30,
+                description: "Predatory / fake instant loan app scam"
+            },
+            apk_install: {
+                keywords: [".apk", "download app", "install apk", "update app link", "sanchar saathi apk", "apk download", "app install karo", "link se app"],
+                score: 45,
+                description: "Malicious APK installation prompt"
+            }
+        };
+
+        const URGENCY_KEYWORDS = [
+            "urgent", "immediately", "within 2 hours", "today itself", "last chance",
+            "turant", "abhi karo", "last date", "jaldi", "warning", "final notice"
+        ];
+
+        // Full PII Redaction Layer (Ported from backend/redact.py)
+        function redactClientSide(text) {
+            if (!text) return '';
+            return text
+                .replace(/\b\d{4}[-\s]?\d{4}[-\s]?\d{4}\b/g, '[Aadhaar Redacted]')
+                .replace(/\b[A-Z]{5}[0-9]{4}[A-Z]{1}\b/gi, '[PAN Redacted]')
+                .replace(/(?:\+91[\-\s]?)?[6-9]\d{9}\b|\b\d{5}[\-\s]?\d{5}\b/g, '[Phone Redacted]')
+                .replace(/\b(?!20\d{2})\d{9,18}\b/g, '[Account Redacted]')
+                .replace(/\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g, '[Email Redacted]');
+        }
+
+        function normalizeHomoglyphs(str) {
+            return (str || '').toLowerCase()
+                .replace(/rn/g, 'm')
+                .replace(/0/g, 'o')
+                .replace(/1/g, 'l')
+                .replace(/3/g, 'e')
+                .replace(/vv/g, 'w');
+        }
+
+        // Levenshtein similarity ratio (0-100) matching rapidfuzz.fuzz.ratio
+        function similarityRatio(a, b) {
+            if (!a || !b) return 0;
+            if (a === b) return 100;
+            const m = a.length, n = b.length;
+            const dp = Array.from({ length: m + 1 }, () => new Array(n + 1).fill(0));
+            for (let i = 0; i <= m; i++) dp[i][0] = i;
+            for (let j = 0; j <= n; j++) dp[0][j] = j;
+            for (let i = 1; i <= m; i++) {
+                for (let j = 1; j <= n; j++) {
+                    const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+                    dp[i][j] = Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1, dp[i - 1][j - 1] + cost);
+                }
+            }
+            return Math.round(((m + n - dp[m][n]) / (m + n)) * 100);
+        }
+
+        function analyzeMessageTextClient(text) {
+            const lower = (text || '').toLowerCase();
+            let ruleScore = 0;
+            const reasons = [];
+
+            for (const [key, cat] of Object.entries(SCAM_PATTERNS)) {
+                if (cat.keywords.some(kw => lower.includes(kw))) {
+                    ruleScore += cat.score;
+                    reasons.push({ rule: `text_pattern_${key}`, score: cat.score, reason: cat.description });
+                }
+            }
+            if (URGENCY_KEYWORDS.some(u => lower.includes(u))) {
+                ruleScore += 15;
+                reasons.push({ rule: 'urgency_pressure', score: 15, reason: 'High-urgency pressure language detected (forcing hasty action)' });
+            }
+            return { ruleScore: Math.min(ruleScore, 100), reasons };
+        }
+
+        function analyzeUrlClient(rawUrl) {
+            let urlStr = rawUrl.trim();
+            if (!/^https?:\/\//i.test(urlStr)) urlStr = 'http://' + urlStr;
+            let parsed;
+            try {
+                parsed = new URL(urlStr);
+            } catch (_) {
+                return { url: rawUrl, domain: rawUrl, riskScore: 20, reasons: [{ score: 20, reason: 'Malformed URL structure' }] };
+            }
+
+            const host = parsed.hostname.toLowerCase();
+            const parts = host.split('.');
+            const multiTlds = new Set(['co.in', 'gov.in', 'nic.in', 'org.in', 'ac.in', 'net.in']);
+            let domain = host, suffix = '', subdomain = '';
+            if (parts.length >= 3 && multiTlds.has(parts.slice(-2).join('.'))) {
+                suffix = parts.slice(-2).join('.');
+                domain = parts[parts.length - 3];
+                subdomain = parts.slice(0, -3).join('.');
+            } else if (parts.length >= 2) {
+                suffix = parts[parts.length - 1];
+                domain = parts[parts.length - 2];
+                subdomain = parts.slice(0, -2).join('.');
+            }
+
+            const fullDomain = suffix ? `${domain}.${suffix}` : domain;
+            const normDomain = normalizeHomoglyphs(domain);
+            let riskScore = 0;
+            const reasons = [];
+
+            if (parsed.protocol !== 'https:') {
+                riskScore += 15;
+                reasons.push({ score: 15, reason: 'URL does not use secure HTTPS' });
+            }
+            if (RISKY_TLDS.has(`.${suffix}`)) {
+                riskScore += 30;
+                reasons.push({ score: 30, reason: `Risky top-level domain (.${suffix}) detected` });
+            }
+            if (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(host)) {
+                riskScore += 40;
+                reasons.push({ score: 40, reason: 'URL uses a raw IP address instead of a domain' });
+            }
+            if (fullDomain.includes('xn--')) {
+                riskScore += 35;
+                reasons.push({ score: 35, reason: 'Punycode (xn--) detected, often used in homograph phishing' });
+            }
+            if (rawUrl.includes('@')) {
+                riskScore += 35;
+                reasons.push({ score: 35, reason: "Contains '@' symbol which can obscure the true destination" });
+            }
+            if ((subdomain.match(/\./g) || []).length > 1 || (fullDomain.match(/-/g) || []).length > 2) {
+                riskScore += 20;
+                reasons.push({ score: 20, reason: 'Unusually high number of subdomains or hyphens' });
+            }
+
+            for (const brand of INDIAN_BRANDS) {
+                const inSubOrPath = subdomain.includes(brand) || parsed.pathname.toLowerCase().includes(brand) || (domain.includes(brand) && domain !== brand);
+                if (inSubOrPath && domain !== brand) {
+                    riskScore += 40;
+                    reasons.push({ score: 40, reason: `Brand name '${brand}' used deceptively in domain/subdomain/path ('${fullDomain}')` });
+                    break;
+                }
+                const sim = Math.max(similarityRatio(brand, domain), similarityRatio(brand, normDomain));
+                if (sim >= 75 && sim < 100 && domain !== brand) {
+                    riskScore += 35;
+                    reasons.push({ score: 35, reason: `Domain looks suspiciously similar to trusted brand '${brand}' (typosquatting)` });
+                    break;
+                }
+            }
+
+            return { url: urlStr, domain: fullDomain, parsed, riskScore: Math.min(riskScore, 100), reasons };
+        }
+
+        function buildVerdictClientSide(score) {
+            const capped = Math.min(score, 100);
+            if (capped >= 70) return { score: capped, verdict: 'Dangerous', color: 'red' };
+            if (capped >= 30) return { score: capped, verdict: 'Suspicious', color: 'orange' };
+            return { score: capped, verdict: 'No red flags found, verify before acting', color: 'gray' };
+        }
+
+        function analyzeFullMessageClientSide(rawText) {
+            const trimmed = (rawText || '').trim();
+            if (trimmed.toLowerCase().startsWith('upi://')) {
+                return analyzePayloadClientSide(trimmed, '');
+            }
+            const safeText = redactClientSide(trimmed);
+            const textRes = analyzeMessageTextClient(safeText);
+            let totalScore = textRes.ruleScore;
+            const allReasons = [...textRes.reasons];
+
+            const urlRegex = /https?:\/\/[^\s]+|www\.[^\s]+|\b[a-zA-Z0-9][-a-zA-Z0-9]{1,62}\.[a-zA-Z]{2,10}(?:\/[^\s]*)?/g;
+            const urlsFound = trimmed.match(urlRegex) || [];
+            for (const u of urlsFound) {
+                if (u.includes('@') && !u.startsWith('http')) continue;
+                const uRes = analyzeUrlClient(u);
+                totalScore += uRes.riskScore;
+                allReasons.push(...uRes.reasons);
+            }
+
+            const v = buildVerdictClientSide(totalScore);
+            return {
+                redacted_text: safeText,
+                score: v.score,
+                verdict: v.verdict,
+                color: v.color,
+                reasons: allReasons
+            };
+        }
+
+        function analyzePayloadClientSide(payload, contextText = '') {
+            const raw = (payload || '').trim();
+            const lower = raw.toLowerCase();
+            const combined = `${raw} ${contextText}`.trim();
+            const combinedLower = combined.toLowerCase();
+            let score = 0;
+            const reasons = [];
+            let type = 'text';
+            let details = {};
+
+            // CASE 1: UPI Payment or Mandate QR
+            if (lower.startsWith('upi://') || (lower.includes('pa=') && lower.includes('@'))) {
+                type = 'upi';
+                const qIndex = raw.indexOf('?');
+                const params = new URLSearchParams(qIndex >= 0 ? raw.slice(qIndex + 1) : raw);
+                const pa = (params.get('pa') || '').trim();
+                const pn = (params.get('pn') || '').trim();
+                const am = (params.get('am') || '').trim();
+                const tn = (params.get('tn') || '').trim();
+                const mc = (params.get('mc') || '').trim();
+                const sign = (params.get('sign') || '').trim();
+                const isMandate = lower.startsWith('upi://mandate') || params.has('recur') || params.has('validitystart');
+
+                details = { payee_vpa: pa, payee_name: pn, amount: am, note: tn, merchant_code: mc, is_signed: Boolean(sign) };
+
+                score += 10;
+                reasons.push({ score: 10, reason: `UPI Payment QR to '${pn || 'Unknown'}' (${pa || 'No VPA'}). Remember: You NEVER need to scan a QR or enter a UPI PIN to receive money.` });
+
+                if (isMandate) {
+                    score += 55;
+                    reasons.push({ score: 55, reason: 'UPI AutoPay / Recurring Mandate QR detected! Scanning can authorize automatic recurring deductions from your bank account.' });
+                }
+
+                const amountVal = am ? parseFloat(am) : 0;
+                if (amountVal >= 2000) {
+                    score += 35;
+                    reasons.push({ score: 35, reason: `QR code locks in a high pre-filled deduction of ₹${amountVal.toLocaleString('en-IN')}. Standard shop QRs let you enter the amount yourself.` });
+                } else if (amountVal > 0) {
+                    score += 20;
+                    reasons.push({ score: 20, reason: `QR code has a pre-filled payment amount of ₹${amountVal.toLocaleString('en-IN')} that will be deducted from your account.` });
+                }
+
+                if (!pa || !pa.includes('@')) {
+                    score += 40;
+                    reasons.push({ score: 40, reason: 'Missing or invalid UPI ID (VPA) structure inside QR payload.' });
+                } else {
+                    const [vpaUser, vpaHandle] = pa.toLowerCase().split('@');
+                    if (!KNOWN_UPI_HANDLES.has(vpaHandle)) {
+                        score += 20;
+                        reasons.push({ score: 20, reason: `Uncommon or non-standard UPI handle '@${vpaHandle}'.` });
+                    }
+                    const isPhoneVpa = /^(?:91)?[6-9]\d{9}$/.test(vpaUser);
+                    const isUnverified = (!mc || mc === '0000') && !sign;
+                    const authTerms = [...INDIAN_BRANDS, 'refund', 'cashback', 'official', 'govt', 'pm kisan', 'rbi', 'cyber', 'police', 'customs', 'care', 'helpline', 'kyc', 'reward', 'army', 'olx', 'lottery', 'prize'];
+                    const matchedAuth = authTerms.find(t => pn.toLowerCase().includes(t) || vpaUser.includes(t));
+                    if (matchedAuth && (isPhoneVpa || isUnverified)) {
+                        score += 45;
+                        reasons.push({ score: 45, reason: `Payee name/VPA claims affiliation with '${matchedAuth.toUpperCase()}', but uses an unverified personal UPI account (${pa}).` });
+                    } else if (isUnverified && amountVal > 0) {
+                        score += 15;
+                        reasons.push({ score: 15, reason: 'QR belongs to an unverified personal UPI account (mc=0000 / unsigned) rather than a verified merchant.' });
+                    }
+                }
+
+                const receiveLures = ['refund', 'prize', 'won', 'cashback', 'lottery', 'reward', 'claim', 'receive', 'credit', 'bonus', 'kyc', 'electricity', 'olx', 'paisa paane', 'refund milega', 'inaam', 'jeeta'];
+                if (receiveLures.some(w => `${pn} ${tn} ${contextText}`.toLowerCase().includes(w))) {
+                    score += 55;
+                    reasons.push({ score: 55, reason: "SCAM TRAP: 'Receive/Refund/Reward' lure paired with a UPI Payment QR! Scanning this will DEDUCT money from your account, not credit it." });
+                }
+
+                const textRes = analyzeMessageTextClient(`${pn} ${tn} ${contextText}`);
+                for (const r of textRes.reasons) {
+                    score += Math.min(r.score, 30);
+                    reasons.push(r);
+                }
+            }
+            // CASE 2: Exploit / Inline Data URI
+            else if (lower.startsWith('javascript:') || lower.startsWith('data:text/html') || lower.startsWith('vbscript:')) {
+                type = 'exploit_uri';
+                score = 95;
+                reasons.push({ score: 95, reason: 'QR encodes an executable script or embedded HTML phishing page (data:/javascript: URI) designed to steal credentials!' });
+            }
+            // CASE 3: Call-Forwarding USSD Hijack
+            else if (lower.startsWith('tel:')) {
+                type = 'phone_ussd';
+                const dial = decodeURIComponent(raw.slice(4)).trim();
+                if (['*21*', '*401*', '*61*', '*62*', '*67*', '**', '#'].some(c => dial.includes(c))) {
+                    score = 90;
+                    reasons.push({ score: 90, reason: `CRITICAL: QR triggers a USSD / Call-Forwarding code (${dial})! Scammers use this to forward your calls and bank OTPs to their own phone.` });
+                } else {
+                    score = 15;
+                    reasons.push({ score: 15, reason: `QR initiates a phone call to ${dial}. Verify this number independently before calling.` });
+                }
+            }
+            // CASE 4: Pre-filled SMS / SIM-Swap Trap
+            else if (lower.startsWith('smsto:') || lower.startsWith('sms:')) {
+                type = 'sms_trap';
+                score = 45;
+                reasons.push({ score: 45, reason: 'QR pre-fills an outgoing SMS. Scammers use SMS QRs to trigger unauthorized UPI device binding or SIM swaps.' });
+                if (['port', 'sim', 'upi', 'block', 'kyc', 'verify', 'token'].some(w => combinedLower.includes(w))) {
+                    score = 85;
+                    reasons.push({ score: 40, reason: 'SMS body contains SIM-porting or account-binding keywords. Do NOT send this SMS!' });
+                }
+            }
+            // CASE 5: Wi-Fi Evil-Twin Auto-Connect
+            else if (lower.startsWith('wifi:')) {
+                type = 'wifi';
+                const ssidMatch = raw.match(/S:([^;]+);/i);
+                const authMatch = raw.match(/T:([^;]+);/i);
+                const ssid = ssidMatch ? ssidMatch[1] : 'Unknown';
+                const auth = (authMatch ? authMatch[1] : 'nopass').toUpperCase();
+                if (auth === 'NOPASS' || auth === 'NONE' || auth.includes('WEP')) {
+                    score = 55;
+                    reasons.push({ score: 55, reason: `QR connects to an unencrypted/weak Wi-Fi network ('${ssid}', security: ${auth}), exposing traffic to local interception.` });
+                } else {
+                    score = 10;
+                    reasons.push({ score: 10, reason: `Wi-Fi auto-connect QR for SSID '${ssid}' (${auth}). Only join networks you trust.` });
+                }
+            }
+            // CASE 6: Web URL inside QR (Quishing)
+            else if (lower.startsWith('http://') || lower.startsWith('https://') || lower.startsWith('www.') || /^[a-z0-9][-a-z0-9]{1,62}\.[a-z]{2,}(?:\/.*)?$/i.test(raw)) {
+                type = 'url';
+                const uRes = analyzeUrlClient(raw);
+                score += uRes.riskScore;
+                reasons.push(...uRes.reasons);
+                details = { url: uRes.url, domain: uRes.domain };
+
+                if (SHORTENER_DOMAINS.has(uRes.domain)) {
+                    score += 35;
+                    reasons.push({ score: 35, reason: `QR code hides its true destination behind a URL shortener (${uRes.domain}).` });
+                }
+                const pathAndQuery = ((uRes.parsed ? uRes.parsed.pathname + uRes.parsed.search : raw) || '').toLowerCase();
+                if (['.apk', '.exe', '.bat', '.scr', '.msi', '.zip'].some(ext => pathAndQuery.includes(ext))) {
+                    score += 65;
+                    reasons.push({ score: 65, reason: 'DANGER: QR link points directly to a downloadable APK / executable file! Scammers use APK QRs to install banking spyware.' });
+                }
+                const phishKw = ['login', 'verify', 'kyc', 'update', 'secure', 'account', 'refund', 'claim', 'reward', 'redirect='].filter(k => pathAndQuery.includes(k));
+                if (phishKw.length > 0) {
+                    score += 20;
+                    reasons.push({ score: 20, reason: `URL path/query contains credential harvesting keywords: ${phishKw.slice(0, 3).join(', ')}` });
+                }
+                if (contextText.trim()) {
+                    const ctxRes = analyzeMessageTextClient(contextText);
+                    score += ctxRes.ruleScore;
+                    reasons.push(...ctxRes.reasons);
+                }
+            }
+            // CASE 7: Plain-Text QR
+            else {
+                type = 'text';
+                const textRes = analyzeMessageTextClient(combined);
+                score += textRes.ruleScore;
+                reasons.push(...textRes.reasons);
+                if (reasons.length === 0) {
+                    reasons.push({ score: 0, reason: 'QR contains plain text with no known scam triggers.' });
+                }
+            }
+
+            const v = buildVerdictClientSide(score);
+            return {
+                decoded_payload: raw,
+                redacted_text: redactClientSide(contextText ? `${raw} | Context: ${contextText}` : raw),
+                analysis_type: type,
+                score: v.score,
+                verdict: v.verdict,
+                color: v.color,
+                reasons,
+                details
+            };
+        }
+
+        // ==================================================================
+        // 3. MULTI-PASS IN-BROWSER QR DECODER (Raw + Dark-Mode + High-Contrast)
+        // ==================================================================
+        function tryJsQrWithPasses(ctx, width, height) {
+            if (!window.jsQR) return '';
+            const rawData = ctx.getImageData(0, 0, width, height);
+
+            // Pass 1: Standard (attempts both normal and inverted in jsQR)
+            let code = window.jsQR(rawData.data, width, height, { inversionAttempts: 'attemptBoth' });
+            if (code && code.data) return code.data.trim();
+
+            // Pass 2: High-contrast binarization pass for blurry / shadowed screenshots
+            const binData = new Uint8ClampedArray(rawData.data);
+            for (let i = 0; i < binData.length; i += 4) {
+                const lum = 0.299 * binData[i] + 0.587 * binData[i + 1] + 0.114 * binData[i + 2];
+                const v = lum > 128 ? 255 : 0;
+                binData[i] = binData[i + 1] = binData[i + 2] = v;
+            }
+            code = window.jsQR(binData, width, height, { inversionAttempts: 'attemptBoth' });
+            if (code && code.data) return code.data.trim();
+
+            return '';
+        }
+
+        function decodeQrFileInBrowser(file) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = async () => {
+                    // 1. Try native hardware BarcodeDetector if available
+                    if ('BarcodeDetector' in window) {
+                        try {
+                            const detector = new BarcodeDetector({ formats: ['qr_code'] });
+                            const codes = await detector.detect(img);
+                            if (codes.length > 0 && codes[0].rawValue) {
+                                resolve(codes[0].rawValue.trim());
+                                return;
+                            }
+                        } catch (_) {}
+                    }
+
+                    // 2. Multi-scale + multi-threshold Canvas passes via jsQR
+                    const scales = [1.0, 0.75, 1.5];
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    for (const scale of scales) {
+                        canvas.width = Math.max(100, Math.floor(img.width * scale));
+                        canvas.height = Math.max(100, Math.floor(img.height * scale));
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        const result = tryJsQrWithPasses(ctx, canvas.width, canvas.height);
+                        if (result) {
+                            resolve(result);
+                            return;
+                        }
+                    }
+                    resolve('');
+                };
+                img.onerror = () => resolve('');
+                img.src = URL.createObjectURL(file);
+            });
+        }
+
+        // ==================================================================
+        // 4. UI CONTROLLERS
+        // ==================================================================
         function switchMainTab(mode) {
             const msgPanel = document.getElementById('messagePanel');
             const qrPanel = document.getElementById('qrPanel');
@@ -276,7 +793,6 @@
             }
         }
 
-        // Switch between Upload QR Image and Live Camera Scan
         function switchQrInputMode(submode) {
             const uploadSec = document.getElementById('qrUploadSection');
             const cameraSec = document.getElementById('qrCameraSection');
@@ -297,7 +813,6 @@
             }
         }
 
-        // Show image preview when user selects a QR screenshot
         function handleQrFileSelect(event) {
             const file = event.target.files[0];
             if (!file) return;
@@ -310,7 +825,6 @@
             reader.readAsDataURL(file);
         }
 
-        // Render unified verdict & breakdown
         function renderAnalysisResult(data, isQr = false) {
             document.getElementById('results').classList.remove('hidden');
 
@@ -324,7 +838,6 @@
 
             document.getElementById('redactedText').innerText = data.redacted_text || data.decoded_payload || 'N/A';
 
-            // Populate QR-specific inspector card if this was a QR scan
             const qrDetailsCard = document.getElementById('qrDetailsCard');
             const upiBox = document.getElementById('upiBreakdownBox');
             if (isQr && data.decoded_payload) {
@@ -350,11 +863,10 @@
                 qrDetailsCard.classList.add('hidden');
             }
 
-            // Populate Risk Reasons
             const reasonsList = document.getElementById('reasonsList');
             reasonsList.innerHTML = '';
             if (!data.reasons || data.reasons.length === 0) {
-                reasonsList.innerHTML = '<li class="text-slate-400">No known offline scam patterns matched. Always verify the sender independently.</li>';
+                reasonsList.innerHTML = '<li class="text-slate-400">No known scam patterns matched. Always verify the sender independently.</li>';
             } else {
                 data.reasons.forEach(r => {
                     const li = document.createElement('li');
@@ -365,25 +877,31 @@
             }
         }
 
-        // 1. Analyze Message / URL
+        // Analyze Message / URL (Works immediately on GitHub Pages; uses FastAPI if running locally)
         async function analyzeMessage() {
             const text = document.getElementById('messageInput').value;
             if (!text.trim()) return;
 
-            try {
-                const response = await fetch('/api/analyze', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text })
-                });
-                const data = await response.json();
-                renderAnalysisResult(data, false);
-            } catch (err) {
-                alert('Error connecting to local server: ' + err);
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                try {
+                    const response = await fetch('/api/analyze', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ text })
+                    });
+                    if (response.ok) {
+                        const data = await response.json();
+                        renderAnalysisResult(data, false);
+                        return;
+                    }
+                } catch (_) {}
             }
+
+            const data = analyzeFullMessageClientSide(text);
+            renderAnalysisResult(data, false);
         }
 
-        // 2. Analyze Uploaded QR Code Image
+        // Analyze Uploaded QR Image
         async function analyzeUploadedQr() {
             const fileInput = document.getElementById('qrFileInput');
             const contextText = document.getElementById('qrContextInput').value || '';
@@ -392,27 +910,30 @@
                 return;
             }
 
-            const formData = new FormData();
-            formData.append('file', fileInput.files[0]);
-            formData.append('message_context', contextText);
-
-            try {
-                const response = await fetch('/api/analyze-qr', {
-                    method: 'POST',
-                    body: formData
-                });
-                const data = await response.json();
-                if (!response.ok) {
-                    alert(data.detail || 'Could not decode QR code from image.');
-                    return;
-                }
-                renderAnalysisResult(data, true);
-            } catch (err) {
-                alert('Error analyzing QR image: ' + err);
+            const decoded = await decodeQrFileInBrowser(fileInput.files[0]);
+            if (decoded) {
+                renderAnalysisResult(analyzePayloadClientSide(decoded, contextText), true);
+                return;
             }
+
+            // If running locally with FastAPI, try backend OpenCV as secondary fallback
+            if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                try {
+                    const formData = new FormData();
+                    formData.append('file', fileInput.files[0]);
+                    formData.append('message_context', contextText);
+                    const response = await fetch('/api/analyze-qr', { method: 'POST', body: formData });
+                    if (response.ok) {
+                        renderAnalysisResult(await response.json(), true);
+                        return;
+                    }
+                } catch (_) {}
+            }
+
+            alert('Could not decode a QR code from this image. Try cropping closer to the QR code.');
         }
 
-        // 3. Live Camera QR Scanning (Works 100% Offline via Canvas -> FastAPI OpenCV + optional native BarcodeDetector)
+        // Live Camera QR Scanning (100% Client-Side on GitHub Pages)
         async function startLiveCamera() {
             const video = document.getElementById('qrVideo');
             const statusText = document.getElementById('cameraStatusText');
@@ -434,10 +955,8 @@
                 document.getElementById('switchCameraBtn').classList.remove('hidden');
                 document.getElementById('stopCameraBtn').classList.remove('hidden');
 
-                statusText.innerText = '🔍 Scanning live camera feed offline... Hold QR code inside the frame.';
-
-                // Poll frames every 650ms and decode locally via FastAPI OpenCV (or native BarcodeDetector if supported)
-                scanIntervalId = setInterval(captureAndDecodeCameraFrame, 650);
+                statusText.innerText = '🔍 Scanning live camera feed... Hold QR code inside the frame.';
+                scanIntervalId = setInterval(captureAndDecodeCameraFrame, 350);
             } catch (err) {
                 statusText.innerText = '❌ Camera access denied or unavailable: ' + err.message;
             }
@@ -482,67 +1001,35 @@
             const contextText = document.getElementById('qrContextInput').value || '';
 
             try {
-                // Fast path: Use browser native BarcodeDetector if available (offline hardware acceleration)
-                if ('BarcodeDetector' in window) {
-                    try {
-                        const detector = new BarcodeDetector({ formats: ['qr_code'] });
-                        const barcodes = await detector.detect(video);
-                        if (barcodes.length > 0 && barcodes[0].rawValue) {
-                            const res = await fetch('/api/analyze-qr-payload', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({
-                                    payload: barcodes[0].rawValue,
-                                    message_context: contextText
-                                })
-                            });
-                            if (res.ok) {
-                                const data = await res.json();
-                                stopLiveCamera();
-                                document.getElementById('cameraStatusText').innerText = '✅ QR code captured and analyzed offline!';
-                                renderAnalysisResult(data, true);
-                                return;
-                            }
-                        }
-                    } catch (_) {
-                        // Fall through to OpenCV backend frame decoding
-                    }
-                }
-
-                // Universal Offline Path: Capture frame to Canvas and decode via local FastAPI OpenCV endpoint
                 const canvas = document.getElementById('qrCaptureCanvas');
                 canvas.width = video.videoWidth || 640;
                 canvas.height = video.videoHeight || 480;
                 const ctx = canvas.getContext('2d');
                 ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-                canvas.toBlob(async (blob) => {
-                    if (!blob || !cameraStream) {
-                        isProcessingFrame = false;
-                        return;
-                    }
-                    const formData = new FormData();
-                    formData.append('file', blob, 'camera_frame.jpg');
-                    formData.append('message_context', contextText);
+                const decoded = tryJsQrWithPasses(ctx, canvas.width, canvas.height);
+                if (decoded) {
+                    stopLiveCamera();
+                    document.getElementById('cameraStatusText').innerText = '✅ QR code captured and analyzed!';
+                    renderAnalysisResult(analyzePayloadClientSide(decoded, contextText), true);
+                    return;
+                }
 
+                if ('BarcodeDetector' in window) {
                     try {
-                        const response = await fetch('/api/analyze-qr', {
-                            method: 'POST',
-                            body: formData
-                        });
-                        if (response.ok) {
-                            const data = await response.json();
+                        const detector = new BarcodeDetector({ formats: ['qr_code'] });
+                        const barcodes = await detector.detect(video);
+                        if (barcodes.length > 0 && barcodes[0].rawValue) {
+                            const rawVal = barcodes[0].rawValue.trim();
                             stopLiveCamera();
-                            document.getElementById('cameraStatusText').innerText = '✅ QR code captured and analyzed offline!';
-                            renderAnalysisResult(data, true);
+                            document.getElementById('cameraStatusText').innerText = '✅ QR code captured and analyzed!';
+                            renderAnalysisResult(analyzePayloadClientSide(rawVal, contextText), true);
+                            return;
                         }
-                    } catch (_) {
-                        // Ignore transient frame errors while scanning
-                    } finally {
-                        isProcessingFrame = false;
-                    }
-                }, 'image/jpeg', 0.85);
+                    } catch (_) {}
+                }
             } catch (_) {
+            } finally {
                 isProcessingFrame = false;
             }
         }
