@@ -1,0 +1,3 @@
+git add frontend/index.html frontend/sw.js frontend/manifest.json .github/workflows/deploy-pages.yml
+git commit -m "Add standalone offline QR & UPI scam scanner for GitHub Pages"
+git push
