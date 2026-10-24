@@ -3,42 +3,369 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tru-lens Scam Detector</title>
+    <title>Tru-lens Scam & QR Detector (Offline-First)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="manifest" href="/manifest.json">
+    <style>
+        /* Offline Fallback Styles (ensures clean UI even when completely disconnected from internet) */
+        body {
+            background-color: #0f172a;
+            color: #f1f5f9;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            margin: 0;
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .app-card {
+            width: 100%;
+            max-width: 32rem;
+            background-color: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            box-sizing: border-box;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.4);
+        }
+        .hidden { display: none !important; }
+        .tab-btn {
+            flex: 1;
+            padding: 0.65rem 0.75rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: all 0.15s ease;
+            text-align: center;
+        }
+        .tab-active {
+            background-color: #0891b2;
+            color: #ffffff;
+            border-color: #06b6d4;
+        }
+        .tab-inactive {
+            background-color: #0f172a;
+            color: #94a3b8;
+            border-color: #334155;
+        }
+        .subtab-active {
+            background-color: #334155;
+            color: #38bdf8;
+            border-color: #38bdf8;
+        }
+        .scan-reticle {
+            position: absolute;
+            inset: 18%;
+            border: 2px dashed rgba(34, 211, 238, 0.85);
+            border-radius: 0.75rem;
+            pointer-events: none;
+            box-shadow: 0 0 0 9999px rgba(15, 23, 42, 0.45);
+        }
+        @keyframes scanline {
+            0% { top: 20%; opacity: 0.8; }
+            50% { top: 78%; opacity: 1; }
+            100% { top: 20%; opacity: 0.8; }
+        }
+        .scan-laser {
+            position: absolute;
+            left: 20%;
+            right: 20%;
+            height: 2px;
+            background: linear-gradient(90deg, transparent, #22d3ee, transparent);
+            animation: scanline 2.2s infinite ease-in-out;
+            pointer-events: none;
+        }
+    </style>
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen p-4 flex flex-col items-center">
-    <div class="w-full max-w-md bg-slate-800 rounded-xl shadow-xl p-6 border border-slate-700">
-        <h1 class="text-2xl font-bold text-center mb-2 text-cyan-400">🛡️ Tru-lens</h1>
-        <p class="text-xs text-center text-slate-400 mb-6">Offline-First Scam & Phishing Detector (Local Server)</p>
+    <div class="app-card w-full max-w-lg bg-slate-800 rounded-xl shadow-xl p-6 border border-slate-700">
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-1">
+            <h1 class="text-2xl font-bold text-cyan-400">🛡️ Tru-lens</h1>
+            <span class="text-[11px] bg-emerald-950 text-emerald-300 border border-emerald-700 px-2.5 py-0.5 rounded-full font-medium">
+                ⚡ 100% Offline Ready
+            </span>
+        </div>
+        <p class="text-xs text-slate-400 mb-5">Offline-First Scam Message, Link & QR Code Detector</p>
 
-        <!-- Input Form -->
-        <div class="mb-4">
-            <label class="block text-sm font-medium mb-2 text-slate-300">Paste suspicious message or URL:</label>
-            <textarea id="messageInput" rows="4" class="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg focus:outline-none focus:border-cyan-500 text-sm" placeholder="e.g. Dear customer your SBI KYC will expire today click http://sbi-update.xyz..."></textarea>
+        <!-- Primary Mode Tabs -->
+        <div class="flex gap-2 mb-5">
+            <button id="tabMessageBtn" onclick="switchMainTab('message')" class="tab-btn tab-active">
+                💬 Message / URL
+            </button>
+            <button id="tabQrBtn" onclick="switchMainTab('qr')" class="tab-btn tab-inactive">
+                📷 QR Code Scanner
+            </button>
         </div>
 
-        <button onclick="analyzeMessage()" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-semibold py-3 rounded-lg transition duration-200">
-            Analyze Risk
-        </button>
-
-        <!-- Results Section -->
-        <div id="results" class="mt-6 hidden space-y-4">
-            <div id="verdictBox" class="p-4 rounded-lg text-center font-bold text-lg"></div>
-            
-            <div class="bg-slate-900 p-3 rounded-lg border border-slate-700 text-xs">
-                <p class="font-semibold text-slate-400 mb-1">Redacted Input (Privacy First):</p>
-                <p id="redactedText" class="text-slate-200 italic"></p>
+        <!-- ============================================================== -->
+        <!-- PANEL 1: MESSAGE / URL ANALYZER                                -->
+        <!-- ============================================================== -->
+        <div id="messagePanel">
+            <div class="mb-4">
+                <label class="block text-sm font-medium mb-2 text-slate-300">Paste suspicious SMS, WhatsApp message, or URL:</label>
+                <textarea id="messageInput" rows="4" class="w-full p-3 bg-slate-900 border border-slate-700 rounded-lg focus:outline-none focus:border-cyan-500 text-sm text-slate-100" placeholder="e.g. Dear customer your SBI KYC will expire today click http://sbi-update.xyz..."></textarea>
             </div>
 
+            <button onclick="analyzeMessage()" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-semibold py-3 rounded-lg transition duration-200 cursor-pointer">
+                Analyze Message / URL Risk
+            </button>
+        </div>
+
+        <!-- ============================================================== -->
+        <!-- PANEL 2: QR CODE & UPI SCAM SCANNER (UPLOAD + LIVE CAMERA)     -->
+        <!-- ============================================================== -->
+        <div id="qrPanel" class="hidden space-y-4">
+            <!-- Input Method Sub-tabs: Upload Image vs Live Camera -->
+            <div class="flex gap-2">
+                <button id="qrSubUploadBtn" onclick="switchQrInputMode('upload')" class="tab-btn subtab-active text-xs py-2">
+                    📁 Upload QR Image
+                </button>
+                <button id="qrSubCameraBtn" onclick="switchQrInputMode('camera')" class="tab-btn tab-inactive text-xs py-2">
+                    🎥 Live Camera Scan
+                </button>
+            </div>
+
+            <!-- Optional Accompanying Context (critical for catching 'Scan to Receive Refund' scams) -->
+            <div>
+                <label class="block text-xs font-medium mb-1 text-slate-300">
+                    Context / Message sent with this QR <span class="text-slate-500">(optional, helps catch refund/prize traps)</span>:
+                </label>
+                <input id="qrContextInput" type="text" class="w-full p-2.5 bg-slate-900 border border-slate-700 rounded-lg focus:outline-none focus:border-cyan-500 text-xs text-slate-100" placeholder="e.g. 'Scan this QR on GPay to receive ₹2,500 cashback / OLX payment'">
+            </div>
+
+            <!-- SUB-MODE A: UPLOAD QR IMAGE / SCREENSHOT -->
+            <div id="qrUploadSection" class="space-y-3">
+                <label for="qrFileInput" class="flex flex-col items-center justify-center w-full h-36 border-2 border-dashed border-slate-600 hover:border-cyan-400 rounded-xl cursor-pointer bg-slate-900/70 transition p-4 text-center">
+                    <span class="text-2xl mb-1">🖼️</span>
+                    <span class="text-xs font-semibold text-slate-200">Click to select or drop a QR code screenshot</span>
+                    <span class="text-[11px] text-slate-400 mt-1">Supports PNG, JPG, WEBP (Decoded 100% offline via OpenCV)</span>
+                    <input id="qrFileInput" type="file" accept="image/*" class="hidden" onchange="handleQrFileSelect(event)">
+                </label>
+
+                <!-- Preview of selected QR image -->
+                <div id="qrPreviewContainer" class="hidden bg-slate-900 p-3 rounded-lg border border-slate-700 flex items-center gap-3">
+                    <img id="qrImagePreview" src="" alt="QR Preview" class="w-16 h-16 object-contain rounded border border-slate-700 bg-white p-1">
+                    <div class="flex-1 min-w-0">
+                        <p id="qrFileName" class="text-xs font-medium text-slate-200 truncate"></p>
+                        <p class="text-[11px] text-emerald-400 mt-0.5">Ready for offline scan</p>
+                    </div>
+                </div>
+
+                <button onclick="analyzeUploadedQr()" class="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-semibold py-3 rounded-lg transition duration-200 cursor-pointer">
+                    🔍 Scan Uploaded QR Code
+                </button>
+            </div>
+
+            <!-- SUB-MODE B: LIVE CAMERA QR SCANNER (100% Offline via Canvas -> FastAPI OpenCV) -->
+            <div id="qrCameraSection" class="hidden space-y-3">
+                <div class="relative w-full bg-slate-950 rounded-xl overflow-hidden border border-slate-700 aspect-video flex items-center justify-center">
+                    <video id="qrVideo" class="w-full h-full object-cover hidden" playsinline muted></video>
+                    <div id="qrReticle" class="scan-reticle hidden"></div>
+                    <div id="qrLaser" class="scan-laser hidden"></div>
+                    <div id="cameraPlaceholder" class="text-center p-6">
+                        <p class="text-2xl mb-1">📷</p>
+                        <p class="text-xs text-slate-300 font-medium">Point your camera at any QR code</p>
+                        <p class="text-[11px] text-slate-400 mt-1">Frames are decoded locally on your device — no internet required</p>
+                    </div>
+                </div>
+
+                <canvas id="qrCaptureCanvas" class="hidden"></canvas>
+
+                <div class="flex gap-2">
+                    <button id="startCameraBtn" onclick="startLiveCamera()" class="flex-1 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold py-2.5 rounded-lg text-xs transition cursor-pointer">
+                        ▶️ Start Camera
+                    </button>
+                    <button id="switchCameraBtn" onclick="flipCamera()" class="hidden bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold px-3 py-2.5 rounded-lg text-xs transition cursor-pointer">
+                        🔄 Flip Camera
+                    </button>
+                    <button id="stopCameraBtn" onclick="stopLiveCamera()" class="hidden flex-1 bg-rose-700 hover:bg-rose-600 text-white font-semibold py-2.5 rounded-lg text-xs transition cursor-pointer">
+                        ⏹️ Stop Camera
+                    </button>
+                </div>
+
+                <p id="cameraStatusText" class="text-[11px] text-center text-slate-400">
+                    Camera is idle. Click "Start Camera" to begin real-time offline scanning.
+                </p>
+            </div>
+        </div>
+
+        <!-- ============================================================== -->
+        <!-- UNIFIED RESULTS SECTION                                        -->
+        <!-- ============================================================== -->
+        <div id="results" class="mt-6 hidden space-y-4">
+            <!-- Verdict Banner -->
+            <div id="verdictBox" class="p-4 rounded-lg text-center font-bold text-lg"></div>
+
+            <!-- QR / UPI Specific Inspector Card (Shown only for QR scans) -->
+            <div id="qrDetailsCard" class="hidden bg-slate-900 p-3.5 rounded-lg border border-slate-700 text-xs space-y-2">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                    <span class="font-semibold text-slate-400">Decoded QR Payload:</span>
+                    <span id="qrTypeBadge" class="px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800 font-mono text-[11px] uppercase"></span>
+                </div>
+                <p id="decodedPayloadText" class="font-mono text-[11px] text-amber-300 break-all bg-slate-950 p-2 rounded border border-slate-800"></p>
+
+                <!-- UPI Payment Breakdown (Shown when QR is a upi:// link) -->
+                <div id="upiBreakdownBox" class="hidden pt-2 space-y-1.5 border-t border-slate-800">
+                    <div class="bg-amber-950/60 border border-amber-700/80 text-amber-200 p-2 rounded text-[11px] font-medium">
+                        ⚠️ <strong>UPI Payment Direction:</strong> Scanning this QR will <u>DEDUCT</u> money from your bank account. Never enter your UPI PIN to "receive" money.
+                    </div>
+                    <div class="grid grid-cols-2 gap-2 pt-1 text-[11px]">
+                        <div class="bg-slate-950 p-2 rounded border border-slate-800">
+                            <span class="text-slate-400 block">Payee Name (pn):</span>
+                            <span id="upiPayeeName" class="font-semibold text-slate-100 break-words"></span>
+                        </div>
+                        <div class="bg-slate-950 p-2 rounded border border-slate-800">
+                            <span class="text-slate-400 block">Payee UPI ID (pa):</span>
+                            <span id="upiPayeeVpa" class="font-mono text-cyan-300 break-all"></span>
+                        </div>
+                        <div class="bg-slate-950 p-2 rounded border border-slate-800">
+                            <span class="text-slate-400 block">Pre-filled Amount:</span>
+                            <span id="upiAmount" class="font-bold text-rose-400"></span>
+                        </div>
+                        <div class="bg-slate-950 p-2 rounded border border-slate-800">
+                            <span class="text-slate-400 block">Account Type:</span>
+                            <span id="upiMerchantStatus" class="font-medium text-slate-200"></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Privacy-First Redacted Input -->
             <div class="bg-slate-900 p-3 rounded-lg border border-slate-700 text-xs">
-                <p class="font-semibold text-slate-400 mb-2">Detected Risk Factors:</p>
-                <ul id="reasonsList" class="space-y-1 text-slate-300"></ul>
+                <p class="font-semibold text-slate-400 mb-1">Redacted Input (Privacy First):</p>
+                <p id="redactedText" class="text-slate-200 italic break-all"></p>
+            </div>
+
+            <!-- Evidence-Based Risk Reasons -->
+            <div class="bg-slate-900 p-3 rounded-lg border border-slate-700 text-xs">
+                <p class="font-semibold text-slate-400 mb-2">Detected Risk Factors (Offline Engine):</p>
+                <ul id="reasonsList" class="space-y-1.5 text-slate-300"></ul>
             </div>
         </div>
     </div>
 
     <script>
+        let cameraStream = null;
+        let scanIntervalId = null;
+        let isProcessingFrame = false;
+        let currentFacingMode = 'environment';
+
+        // Switch between Message/URL tab and QR Code Scanner tab
+        function switchMainTab(mode) {
+            const msgPanel = document.getElementById('messagePanel');
+            const qrPanel = document.getElementById('qrPanel');
+            const msgBtn = document.getElementById('tabMessageBtn');
+            const qrBtn = document.getElementById('tabQrBtn');
+            document.getElementById('results').classList.add('hidden');
+
+            if (mode === 'message') {
+                stopLiveCamera();
+                msgPanel.classList.remove('hidden');
+                qrPanel.classList.add('hidden');
+                msgBtn.className = 'tab-btn tab-active';
+                qrBtn.className = 'tab-btn tab-inactive';
+            } else {
+                msgPanel.classList.add('hidden');
+                qrPanel.classList.remove('hidden');
+                msgBtn.className = 'tab-btn tab-inactive';
+                qrBtn.className = 'tab-btn tab-active';
+            }
+        }
+
+        // Switch between Upload QR Image and Live Camera Scan
+        function switchQrInputMode(submode) {
+            const uploadSec = document.getElementById('qrUploadSection');
+            const cameraSec = document.getElementById('qrCameraSection');
+            const uploadBtn = document.getElementById('qrSubUploadBtn');
+            const cameraBtn = document.getElementById('qrSubCameraBtn');
+
+            if (submode === 'upload') {
+                stopLiveCamera();
+                uploadSec.classList.remove('hidden');
+                cameraSec.classList.add('hidden');
+                uploadBtn.className = 'tab-btn subtab-active text-xs py-2';
+                cameraBtn.className = 'tab-btn tab-inactive text-xs py-2';
+            } else {
+                uploadSec.classList.add('hidden');
+                cameraSec.classList.remove('hidden');
+                uploadBtn.className = 'tab-btn tab-inactive text-xs py-2';
+                cameraBtn.className = 'tab-btn subtab-active text-xs py-2';
+            }
+        }
+
+        // Show image preview when user selects a QR screenshot
+        function handleQrFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                document.getElementById('qrImagePreview').src = e.target.result;
+                document.getElementById('qrFileName').innerText = file.name;
+                document.getElementById('qrPreviewContainer').classList.remove('hidden');
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // Render unified verdict & breakdown
+        function renderAnalysisResult(data, isQr = false) {
+            document.getElementById('results').classList.remove('hidden');
+
+            const verdictBox = document.getElementById('verdictBox');
+            verdictBox.innerText = `Verdict: ${data.verdict} (Risk Score: ${data.score}/100)`;
+            verdictBox.className = `p-4 rounded-lg text-center font-bold text-lg ${
+                data.color === 'red' ? 'bg-red-900 text-red-200 border border-red-700' :
+                data.color === 'orange' ? 'bg-amber-900 text-amber-200 border border-amber-700' :
+                'bg-emerald-900 text-emerald-200 border border-emerald-700'
+            }`;
+
+            document.getElementById('redactedText').innerText = data.redacted_text || data.decoded_payload || 'N/A';
+
+            // Populate QR-specific inspector card if this was a QR scan
+            const qrDetailsCard = document.getElementById('qrDetailsCard');
+            const upiBox = document.getElementById('upiBreakdownBox');
+            if (isQr && data.decoded_payload) {
+                qrDetailsCard.classList.remove('hidden');
+                document.getElementById('decodedPayloadText').innerText = data.decoded_payload;
+                document.getElementById('qrTypeBadge').innerText = data.analysis_type || 'QR';
+
+                if (data.analysis_type === 'upi' && data.details) {
+                    upiBox.classList.remove('hidden');
+                    document.getElementById('upiPayeeName').innerText = data.details.payee_name || 'Not specified';
+                    document.getElementById('upiPayeeVpa').innerText = data.details.payee_vpa || 'Unknown';
+                    document.getElementById('upiAmount').innerText = data.details.amount
+                        ? `₹${data.details.amount} (Pre-filled)`
+                        : 'User-entered (No fixed amount)';
+                    const isVerified = data.details.is_signed || (data.details.merchant_code && data.details.merchant_code !== '0000');
+                    document.getElementById('upiMerchantStatus').innerText = isVerified
+                        ? '✅ Verified Merchant QR'
+                        : '⚠️ Unverified Personal Account';
+                } else {
+                    upiBox.classList.add('hidden');
+                }
+            } else {
+                qrDetailsCard.classList.add('hidden');
+            }
+
+            // Populate Risk Reasons
+            const reasonsList = document.getElementById('reasonsList');
+            reasonsList.innerHTML = '';
+            if (!data.reasons || data.reasons.length === 0) {
+                reasonsList.innerHTML = '<li class="text-slate-400">No known offline scam patterns matched. Always verify the sender independently.</li>';
+            } else {
+                data.reasons.forEach(r => {
+                    const li = document.createElement('li');
+                    const badgeColor = r.score >= 40 ? 'text-rose-400' : r.score >= 20 ? 'text-amber-400' : 'text-cyan-400';
+                    li.innerHTML = `• <span class="font-mono font-semibold ${badgeColor}">[+${r.score}]</span> ${r.reason}`;
+                    reasonsList.appendChild(li);
+                });
+            }
+        }
+
+        // 1. Analyze Message / URL
         async function analyzeMessage() {
             const text = document.getElementById('messageInput').value;
             if (!text.trim()) return;
@@ -50,36 +377,173 @@
                     body: JSON.stringify({ text })
                 });
                 const data = await response.json();
-
-                // Show results container
-                document.getElementById('results').classList.remove('hidden');
-
-                // Set verdict box color & text
-                const verdictBox = document.getElementById('verdictBox');
-                verdictBox.innerText = `Verdict: ${data.verdict} (Score: ${data.score}/100)`;
-                verdictBox.className = `p-4 rounded-lg text-center font-bold text-lg ${
-                    data.color === 'red' ? 'bg-red-900 text-red-200 border border-red-700' :
-                    data.color === 'orange' ? 'bg-amber-900 text-amber-200 border border-amber-700' :
-                    'bg-emerald-900 text-emerald-200 border border-emerald-700'
-                }`;
-
-                // Redacted text
-                document.getElementById('redactedText').innerText = data.redacted_text;
-
-                // Reasons list
-                const reasonsList = document.getElementById('reasonsList');
-                reasonsList.innerHTML = '';
-                if (data.reasons.length === 0) {
-                    reasonsList.innerHTML = '<li class="text-slate-400">No red flags detected.</li>';
-                } else {
-                    data.reasons.forEach(r => {
-                        const li = document.createElement('li');
-                        li.innerHTML = `• <span class="text-cyan-400">[+${r.score}]</span> ${r.reason}`;
-                        reasonsList.appendChild(li);
-                    });
-                }
+                renderAnalysisResult(data, false);
             } catch (err) {
                 alert('Error connecting to local server: ' + err);
+            }
+        }
+
+        // 2. Analyze Uploaded QR Code Image
+        async function analyzeUploadedQr() {
+            const fileInput = document.getElementById('qrFileInput');
+            const contextText = document.getElementById('qrContextInput').value || '';
+            if (!fileInput.files || fileInput.files.length === 0) {
+                alert('Please select a QR code image first.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('message_context', contextText);
+
+            try {
+                const response = await fetch('/api/analyze-qr', {
+                    method: 'POST',
+                    body: formData
+                });
+                const data = await response.json();
+                if (!response.ok) {
+                    alert(data.detail || 'Could not decode QR code from image.');
+                    return;
+                }
+                renderAnalysisResult(data, true);
+            } catch (err) {
+                alert('Error analyzing QR image: ' + err);
+            }
+        }
+
+        // 3. Live Camera QR Scanning (Works 100% Offline via Canvas -> FastAPI OpenCV + optional native BarcodeDetector)
+        async function startLiveCamera() {
+            const video = document.getElementById('qrVideo');
+            const statusText = document.getElementById('cameraStatusText');
+
+            try {
+                stopLiveCamera();
+                cameraStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: currentFacingMode, width: { ideal: 640 }, height: { ideal: 480 } },
+                    audio: false
+                });
+                video.srcObject = cameraStream;
+                await video.play();
+
+                video.classList.remove('hidden');
+                document.getElementById('qrReticle').classList.remove('hidden');
+                document.getElementById('qrLaser').classList.remove('hidden');
+                document.getElementById('cameraPlaceholder').classList.add('hidden');
+                document.getElementById('startCameraBtn').classList.add('hidden');
+                document.getElementById('switchCameraBtn').classList.remove('hidden');
+                document.getElementById('stopCameraBtn').classList.remove('hidden');
+
+                statusText.innerText = '🔍 Scanning live camera feed offline... Hold QR code inside the frame.';
+
+                // Poll frames every 650ms and decode locally via FastAPI OpenCV (or native BarcodeDetector if supported)
+                scanIntervalId = setInterval(captureAndDecodeCameraFrame, 650);
+            } catch (err) {
+                statusText.innerText = '❌ Camera access denied or unavailable: ' + err.message;
+            }
+        }
+
+        function flipCamera() {
+            currentFacingMode = currentFacingMode === 'environment' ? 'user' : 'environment';
+            startLiveCamera();
+        }
+
+        function stopLiveCamera() {
+            if (scanIntervalId) {
+                clearInterval(scanIntervalId);
+                scanIntervalId = null;
+            }
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => track.stop());
+                cameraStream = null;
+            }
+            const video = document.getElementById('qrVideo');
+            if (video) {
+                video.pause();
+                video.srcObject = null;
+                video.classList.add('hidden');
+            }
+            document.getElementById('qrReticle').classList.add('hidden');
+            document.getElementById('qrLaser').classList.add('hidden');
+            document.getElementById('cameraPlaceholder').classList.remove('hidden');
+            document.getElementById('startCameraBtn').classList.remove('hidden');
+            document.getElementById('switchCameraBtn').classList.add('hidden');
+            document.getElementById('stopCameraBtn').classList.add('hidden');
+            document.getElementById('cameraStatusText').innerText = 'Camera stopped.';
+            isProcessingFrame = false;
+        }
+
+        async function captureAndDecodeCameraFrame() {
+            if (isProcessingFrame || !cameraStream) return;
+            const video = document.getElementById('qrVideo');
+            if (video.readyState !== video.HAVE_ENOUGH_DATA) return;
+
+            isProcessingFrame = true;
+            const contextText = document.getElementById('qrContextInput').value || '';
+
+            try {
+                // Fast path: Use browser native BarcodeDetector if available (offline hardware acceleration)
+                if ('BarcodeDetector' in window) {
+                    try {
+                        const detector = new BarcodeDetector({ formats: ['qr_code'] });
+                        const barcodes = await detector.detect(video);
+                        if (barcodes.length > 0 && barcodes[0].rawValue) {
+                            const res = await fetch('/api/analyze-qr-payload', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    payload: barcodes[0].rawValue,
+                                    message_context: contextText
+                                })
+                            });
+                            if (res.ok) {
+                                const data = await res.json();
+                                stopLiveCamera();
+                                document.getElementById('cameraStatusText').innerText = '✅ QR code captured and analyzed offline!';
+                                renderAnalysisResult(data, true);
+                                return;
+                            }
+                        }
+                    } catch (_) {
+                        // Fall through to OpenCV backend frame decoding
+                    }
+                }
+
+                // Universal Offline Path: Capture frame to Canvas and decode via local FastAPI OpenCV endpoint
+                const canvas = document.getElementById('qrCaptureCanvas');
+                canvas.width = video.videoWidth || 640;
+                canvas.height = video.videoHeight || 480;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                canvas.toBlob(async (blob) => {
+                    if (!blob || !cameraStream) {
+                        isProcessingFrame = false;
+                        return;
+                    }
+                    const formData = new FormData();
+                    formData.append('file', blob, 'camera_frame.jpg');
+                    formData.append('message_context', contextText);
+
+                    try {
+                        const response = await fetch('/api/analyze-qr', {
+                            method: 'POST',
+                            body: formData
+                        });
+                        if (response.ok) {
+                            const data = await response.json();
+                            stopLiveCamera();
+                            document.getElementById('cameraStatusText').innerText = '✅ QR code captured and analyzed offline!';
+                            renderAnalysisResult(data, true);
+                        }
+                    } catch (_) {
+                        // Ignore transient frame errors while scanning
+                    } finally {
+                        isProcessingFrame = false;
+                    }
+                }, 'image/jpeg', 0.85);
+            } catch (_) {
+                isProcessingFrame = false;
             }
         }
     </script>
